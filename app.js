@@ -51,6 +51,7 @@ let selectedGroupMembers = [];
 let callType = 'voice'; // 'voice' | 'video'
 let micMuted = false;
 let speakerOff = false;
+let pendingIncomingCall = null; // stores { chatId, call } for the answer button
 
 // ===== AUTH STATE =====
 onAuthStateChanged(auth, async (user) => {
@@ -616,43 +617,74 @@ window.startCall = async (type) => {
 };
 
 function listenGlobalCalls() {
+  let alreadyShownCallId = null;
+
   onValue(ref(db, 'calls'), (snap) => {
     const calls = snap.val();
-    if (!calls) return;
+    if (!calls) {
+      // All calls gone — if we were waiting, clean up
+      if (alreadyShownCallId) {
+        alreadyShownCallId = null;
+        if (!pc) endCallLocal(); // only if not already in a call
+      }
+      return;
+    }
 
     Object.entries(calls).forEach(([chatId, call]) => {
       const chat = allChats.find(c => c.id === chatId);
-      if (chat && call.status === 'calling' && call.callerId !== currentUser.uid && !isCallActive) {
+      if (
+        chat &&
+        call.status === 'calling' &&
+        call.callerId !== currentUser.uid &&
+        !isCallActive &&
+        chatId !== alreadyShownCallId
+      ) {
+        alreadyShownCallId = chatId;
         showIncomingCall(chatId, call);
+      }
+      // If call ended while we're in it
+      if (chatId === currentChatId && call.status === 'ended' && isCallActive) {
+        endCallLocal();
       }
     });
   });
 }
 
 function showIncomingCall(chatId, call) {
+  // Store call data safely — never embed SDP in HTML attributes
+  pendingIncomingCall = { chatId, call };
   isCallActive = true;
   currentChatId = chatId;
+
   document.getElementById('call-screen').classList.add('open');
   document.getElementById('call-name').textContent = call.callerName || 'Звонок';
-  document.getElementById('call-status').textContent = call.callType === 'video' ? '📹 Входящий видеозвонок' : '📞 Входящий звонок';
+  document.getElementById('call-status').textContent =
+    call.callType === 'video' ? '📹 Входящий видеозвонок' : '📞 Входящий звонок';
 
   resetCallUI();
 
-  // Add answer button
-  const actionsEl = document.getElementById('call-actions');
+  // Add answer button — calls window.answerIncoming(), no data in onclick
   if (!document.getElementById('answer-btn-wrap')) {
     const wrap = document.createElement('div');
     wrap.className = 'call-btn-wrap';
     wrap.id = 'answer-btn-wrap';
     wrap.innerHTML = `
-      <button class="call-btn call-btn-answer" onclick="answerCall('${chatId}', ${JSON.stringify(call).replace(/"/g, '&quot;')})" id="answer-btn" title="Принять">
+      <button class="call-btn call-btn-answer" onclick="answerIncoming()" id="answer-btn" title="Принять">
         <svg width="28" height="28"><use href="#ic-phone-answer"/></svg>
       </button>
       <span class="call-btn-label">Принять</span>
     `;
-    actionsEl.prepend(wrap);
+    document.getElementById('call-actions').prepend(wrap);
   }
 }
+
+// Called from the answer button — reads pendingIncomingCall set by showIncomingCall
+window.answerIncoming = async () => {
+  if (!pendingIncomingCall) { showToast('Данные звонка потеряны'); return; }
+  const { chatId, call } = pendingIncomingCall;
+  pendingIncomingCall = null;
+  await answerCall(chatId, call);
+};
 
 async function answerCall(chatId, call) {
   document.getElementById('answer-btn-wrap')?.remove();
