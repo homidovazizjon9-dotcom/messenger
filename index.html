@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0" />
+  <meta name="theme-color" content="#7c4dff" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="СемьяЧат" />
+  <meta name="description" content="Семейный мессенджер - общайтесь с близкими" />
+  <title>СемьяЧат</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ========== AUTH SCREEN ========== -->
+  <div id="auth-screen">
+    <div class="auth-logo">💬</div>
+    <h1 class="auth-title">СемьяЧат</h1>
+    <p class="auth-subtitle">Общайтесь с близкими безопасно и легко</p>
+
+    <div class="auth-card">
+      <div class="form-group" style="margin-top:20px;">
+        <label class="form-label">Ваше имя (для семьи)</label>
+        <input class="form-input" type="text" id="anon-name" placeholder="Например: Папа, Мама, Азиз..." autocomplete="name" />
+      </div>
+      <button class="btn-primary" onclick="doAnonymousLogin()" id="btn-anon">Начать пользоваться</button>
+      <div class="auth-error" id="auth-error"></div>
+    </div>
+  </div>
+
+  <!-- ========== MAIN SCREEN ========== -->
+  <div id="main-screen">
+
+    <!-- SIDEBAR / CHAT LIST -->
+    <div class="sidebar" id="sidebar">
+      <div class="header">
+        <div class="avatar avatar-sm" id="header-avatar" onclick="showProfile()">
+          <span id="header-avatar-letter">?</span>
+        </div>
+        <span class="header-title">💬 СемьяЧат</span>
+        <button class="header-btn" onclick="showNewGroup()" title="Новая группа">👥</button>
+        <button class="header-btn" onclick="showNewChat()" title="Новый чат">✏️</button>
+      </div>
+
+      <div class="search-bar">
+        <div class="search-input-wrap">
+          <span>🔍</span>
+          <input class="search-input" type="search" placeholder="Поиск чатов..." id="search-chats" oninput="filterChats(this.value)" />
+        </div>
+      </div>
+
+      <div class="chat-list" id="chat-list">
+        <div class="empty-state">
+          <div class="empty-icon">💬</div>
+          <div class="empty-title">Нет чатов</div>
+          <div class="empty-desc">Нажмите ✏️ чтобы начать новый чат</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CHAT VIEW -->
+    <div class="chat-view" id="chat-view">
+      <div class="chat-header">
+        <button class="header-btn" onclick="closeChat()">←</button>
+        <div class="avatar" id="chat-avatar">
+          <span id="chat-avatar-letter">?</span>
+        </div>
+        <div class="chat-header-info">
+          <div class="chat-header-name" id="chat-header-name">Чат</div>
+          <div class="chat-header-status" id="chat-header-status">в сети</div>
+        </div>
+        <button class="header-btn" onclick="startCall('voice')" title="Голосовой звонок">📞</button>
+        <button class="header-btn" onclick="startCall('video')" title="Видеозвонок">📹</button>
+        <button class="header-btn" onclick="openChatMenu()" title="Меню">⋮</button>
+      </div>
+
+      <div class="messages-area" id="messages-area">
+        <div class="empty-state">
+          <div class="empty-icon">👋</div>
+          <div class="empty-title">Напишите первым!</div>
+          <div class="empty-desc">Начните разговор</div>
+        </div>
+      </div>
+
+      <div class="input-area">
+        <div class="input-wrap">
+          <button class="attach-btn" onclick="document.getElementById('file-input').click()" title="Прикрепить фото">📎</button>
+          <textarea id="message-input" placeholder="Написать сообщение..." rows="1"
+            oninput="autoResize(this); handleTyping()"
+            onkeydown="handleKeydown(event)"></textarea>
+        </div>
+        <button class="send-btn" onclick="sendMessage()" title="Отправить">➤</button>
+      </div>
+      <input type="file" id="file-input" accept="image/*" onchange="handleFileUpload(event)" />
+    </div>
+
+    <!-- NEW CHAT PAGE -->
+    <div class="new-chat-page" id="new-chat-page">
+      <div class="header">
+        <button class="header-btn" onclick="closeNewChat()">←</button>
+        <span class="header-title">Новый чат</span>
+      </div>
+      <div class="search-bar">
+        <div class="search-input-wrap">
+          <span>🔍</span>
+          <input class="search-input" type="search" placeholder="Поиск пользователей..." id="user-search" oninput="searchUsers(this.value)" />
+        </div>
+      </div>
+      <div class="user-list" id="user-list">
+        <div class="empty-state">
+          <div class="empty-icon">👥</div>
+          <div class="empty-title">Введите имя или email</div>
+          <div class="empty-desc">Найдите пользователей для начала чата</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- NEW GROUP PAGE -->
+    <div class="new-chat-page" id="new-group-page">
+      <div class="header">
+        <button class="header-btn" onclick="closeNewGroup()">←</button>
+        <span class="header-title">Новая группа</span>
+        <button class="header-btn" onclick="createGroup()" id="create-group-btn" style="color:var(--accent);font-weight:700;font-size:14px;width:auto;padding:0 8px;border-radius:8px;">Создать</button>
+      </div>
+      <div class="search-bar" style="display:flex;flex-direction:column;gap:8px;">
+        <input class="form-input" type="text" id="group-name" placeholder="Название группы..." />
+        <div class="search-input-wrap">
+          <span>🔍</span>
+          <input class="search-input" type="search" placeholder="Добавить участников..." id="group-search" oninput="searchGroupUsers(this.value)" />
+        </div>
+      </div>
+      <div class="chips-wrap" id="selected-members"></div>
+      <div class="user-list" id="group-user-list">
+        <div class="empty-state">
+          <div class="empty-icon">👥</div>
+          <div class="empty-title">Поиск участников</div>
+          <div class="empty-desc">Введите имя для поиска</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PROFILE PAGE -->
+    <div class="profile-page" id="profile-page">
+      <div class="profile-header-bg">
+        <button class="header-btn" style="position:absolute;top:calc(var(--safe-top)+12px);left:12px;" onclick="closeProfile()">←</button>
+        <div class="profile-avatar-wrap">
+          <div class="profile-avatar" id="profile-avatar-big" onclick="changeAvatar()">
+            <span id="profile-avatar-letter-big">?</span>
+          </div>
+        </div>
+      </div>
+      <div class="profile-info">
+        <div class="profile-name" id="profile-name-display">Загрузка...</div>
+        <div class="profile-email" id="profile-email-display">—</div>
+      </div>
+
+      <div class="profile-section">
+        <div class="profile-section-title">Аккаунт</div>
+        <div class="profile-row" onclick="editName()">
+          <span class="profile-row-icon">✏️</span>
+          <span class="profile-row-label">Изменить имя</span>
+        </div>
+        <div class="profile-row" onclick="changeAvatar()">
+          <span class="profile-row-icon">🖼️</span>
+          <span class="profile-row-label">Изменить фото</span>
+        </div>
+      </div>
+
+      <div class="profile-section">
+        <div class="profile-section-title">Приложение</div>
+        <div class="profile-row" onclick="showToast('Уведомления включены ✓')">
+          <span class="profile-row-icon">🔔</span>
+          <span class="profile-row-label">Уведомления</span>
+          <span class="profile-row-value">Вкл</span>
+        </div>
+        <div class="profile-row" onclick="showToast('Тема: Тёмная')">
+          <span class="profile-row-icon">🌙</span>
+          <span class="profile-row-label">Тема</span>
+          <span class="profile-row-value">Тёмная</span>
+        </div>
+        <div class="profile-row" onclick="copyInviteLink()">
+          <span class="profile-row-icon">🔗</span>
+          <span class="profile-row-label">Пригласить в СемьяЧат</span>
+        </div>
+      </div>
+
+      <div class="profile-section">
+        <div class="profile-row profile-row-danger" onclick="doLogout()">
+          <span class="profile-row-icon">🚪</span>
+          <span class="profile-row-label profile-row-danger">Выйти из аккаунта</span>
+        </div>
+      </div>
+
+      <input type="file" id="avatar-input" accept="image/*" onchange="handleAvatarUpload(event)" />
+    </div>
+
+  </div><!-- /main-screen -->
+
+</div><!-- /app -->
+
+<!-- ========== MODALS ========== -->
+
+<!-- Chat Menu -->
+<div class="modal-overlay" id="chat-menu-overlay" onclick="closeChatMenu()">
+  <div class="modal" onclick="e=>e.stopPropagation()">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="chat-menu-title">Меню чата</div>
+    <div class="modal-option" onclick="clearChat()">
+      <span class="modal-option-icon">🗑️</span> Очистить чат
+    </div>
+    <div class="modal-option modal-option-danger" onclick="deleteChat()">
+      <span class="modal-option-icon">❌</span> Удалить чат
+    </div>
+    <div class="modal-option" onclick="closeChatMenu()">
+      <span class="modal-option-icon">✖️</span> Отмена
+    </div>
+  </div>
+</div>
+
+<!-- Edit Name Modal -->
+<div class="modal-center" id="edit-name-modal">
+  <div class="modal-inner">
+    <div style="font-size:18px;font-weight:700;margin-bottom:16px;">Изменить имя</div>
+    <input class="form-input" type="text" id="new-name-input" placeholder="Ваше имя" />
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      <button class="btn-primary" style="background:var(--surface2);box-shadow:none;" onclick="closeEditName()">Отмена</button>
+      <button class="btn-primary" onclick="saveNewName()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- Image Viewer -->
+<div id="image-viewer">
+  <button id="image-viewer-close" onclick="closeImageViewer()">✕</button>
+  <img id="image-viewer-img" src="" alt="Фото" />
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Call Screen -->
+  <div class="call-screen" id="call-screen">
+    <div id="video-container" style="position:absolute;inset:0;display:none;">
+      <video id="remoteVideo" autoplay playsinline style="width:100%;height:100%;object-fit:cover;"></video>
+      <video id="localVideo" autoplay playsinline muted style="position:absolute;top:20px;right:20px;width:100px;height:150px;object-fit:cover;border-radius:12px;border:2px solid var(--border);box-shadow:0 8px 24px rgba(0,0,0,0.5);"></video>
+    </div>
+    <div style="text-align:center;z-index:10;transition:opacity 0.3s;" id="call-ui-top">
+      <div class="call-avatar-large" id="call-avatar">👤</div>
+      <div class="call-name" id="call-name">Звонок</div>
+      <div class="call-status" id="call-status">Соединение...</div>
+    </div>
+    <div class="call-actions" style="z-index:10;">
+      <button class="call-btn call-btn-mute" onclick="toggleMute(this)" id="mute-btn">🎤</button>
+      <button class="call-btn call-btn-end" onclick="endCall()">📵</button>
+      <button class="call-btn call-btn-mute" onclick="toggleSpeaker(this)" id="speaker-btn">🔊</button>
+    </div>
+  </div>
+
+<!-- ========== FIREBASE & APP ========== -->
+<script type="module" src="app.js"></script>
+</body>
+</html>

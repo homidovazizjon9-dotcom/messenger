@@ -1,0 +1,30 @@
+{
+  "rules": {
+    ".read": "auth != null",
+    ".write": "auth != null",
+    "users": {
+      "$uid": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid == $uid"
+      }
+    },
+    "chats": {
+      "$chatId": {
+        ".read": "auth != null && data.child('members').val().contains(auth.uid)",
+        ".write": "auth != null && (!data.exists() || data.child('members').val().contains(auth.uid))"
+      }
+    },
+    "messages": {
+      "$chatId": {
+        ".read": "auth != null && root.child('chats').child($chatId).child('members').val().contains(auth.uid)",
+        ".write": "auth != null && root.child('chats').child($chatId).child('members').val().contains(auth.uid)"
+      }
+    },
+    "calls": {
+      "$chatId": {
+        ".read": "auth != null && root.child('chats').child($chatId).child('members').val().contains(auth.uid)",
+        ".write": "auth != null && root.child('chats').child($chatId).child('members').val().contains(auth.uid)"
+      }
+    }
+  }
+}
