@@ -49,6 +49,7 @@ let isCallActive = false;
 let selectedGroupMembers = [];
 let micMuted = false;
 let speakerOff = false;
+let videoMuted = false;
 let pendingIncomingCall = null; // {chatId, call} — безопасное хранение данных звонка
 let callUnsubscribes = []; // Для отписки от слушателей WebRTC (предотвращение утечек)
 let shownCallId = null; // Хранение ID отображаемого звонка
@@ -748,9 +749,11 @@ function endCallLocal() {
   callUnsubscribes.forEach(unsub => unsub());
   callUnsubscribes = [];
   shownCallId = null;
+
   isCallActive = false;
   micMuted = false;
   speakerOff = false;
+  videoMuted = false;
   pendingIncomingCall = null;
   document.getElementById('call-screen').classList.remove('open');
   document.getElementById('video-container').style.display = 'none';
@@ -761,6 +764,7 @@ function endCallLocal() {
 function resetCallUI() {
   const muteBtn = document.getElementById('mute-btn');
   const speakerBtn = document.getElementById('speaker-btn');
+  const videoBtn = document.getElementById('video-btn');
   if (muteBtn) {
     muteBtn.classList.remove('active');
     muteBtn.innerHTML = `<svg width="26" height="26"><use href="#ic-mic"/></svg>`;
@@ -770,6 +774,11 @@ function resetCallUI() {
     speakerBtn.classList.remove('active');
     speakerBtn.innerHTML = `<svg width="26" height="26"><use href="#ic-volume"/></svg>`;
     speakerBtn.title = 'Выключить динамик';
+  }
+  if (videoBtn) {
+    videoBtn.classList.remove('active');
+    videoBtn.innerHTML = `<svg width="26" height="26"><use href="#ic-camera"/></svg>`;
+    videoBtn.title = 'Выключить камеру';
   }
 }
 
@@ -803,6 +812,31 @@ window.toggleSpeaker = (btn) => {
     btn.innerHTML = `<svg width="26" height="26"><use href="#ic-volume"/></svg>`;
     btn.title = 'Выключить динамик';
     showToast('Динамик включён');
+  }
+};
+
+window.toggleVideo = (btn) => {
+  if (!localStream) return;
+  const videoTrack = localStream.getVideoTracks()[0];
+  
+  if (!videoTrack) {
+    showToast('Камера недоступна (начат аудиозвонок)');
+    return;
+  }
+
+  videoMuted = !videoMuted;
+  videoTrack.enabled = !videoMuted;
+  
+  if (videoMuted) {
+    btn.classList.add('active');
+    btn.innerHTML = `<svg width="26" height="26"><use href="#ic-camera-off"/></svg>`;
+    btn.title = 'Включить камеру';
+    showToast('Камера выключена');
+  } else {
+    btn.classList.remove('active');
+    btn.innerHTML = `<svg width="26" height="26"><use href="#ic-camera"/></svg>`;
+    btn.title = 'Выключить камеру';
+    showToast('Камера включена');
   }
 };
 
