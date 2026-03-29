@@ -29,13 +29,28 @@ const storage = getStorage(firebaseApp);
 
 // ===== WEBRTC CONFIG =====
 const peerConfig = {
-  iceServers: [{ urls: [
-    'stun:stun1.l.google.com:19302',
-    'stun:stun2.l.google.com:19302',
-    'stun:stun3.l.google.com:19302',
-    'stun:stun4.l.google.com:19302',
-    'stun:global.stun.twilio.com:3478'
-  ]}]
+  iceServers: [
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
+    { urls: 'stun:global.stun.twilio.com:3478' },
+    {
+      urls: 'turn:openrelay.metered.ca:80',
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443',
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    }
+  ]
 };
 
 // ===== APP STATE =====
@@ -816,11 +831,14 @@ window.toggleSpeaker = (btn) => {
 };
 
 window.toggleVideo = (btn) => {
-  if (!localStream) return;
+  if (!localStream) {
+    showToast('Медиапоток не найден');
+    return;
+  }
   const videoTrack = localStream.getVideoTracks()[0];
   
   if (!videoTrack) {
-    showToast('Камера недоступна (начат аудиозвонок)');
+    showToast('Начните Видеозвонок заново (кнопка в чате), текущий — аудио!');
     return;
   }
 
