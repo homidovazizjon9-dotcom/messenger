@@ -33,7 +33,8 @@ const peerConfig = {
     'stun:stun1.l.google.com:19302',
     'stun:stun2.l.google.com:19302',
     'stun:stun3.l.google.com:19302',
-    'stun:stun4.l.google.com:19302'
+    'stun:stun4.l.google.com:19302',
+    'stun:global.stun.twilio.com:3478'
   ]}]
 };
 
@@ -49,6 +50,8 @@ let selectedGroupMembers = [];
 let micMuted = false;
 let speakerOff = false;
 let pendingIncomingCall = null; // {chatId, call} — безопасное хранение данных звонка
+let callUnsubscribes = []; // Для отписки от слушателей WebRTC (предотвращение утечек)
+let shownCallId = null; // Хранение ID отображаемого звонка
 
 // Функции отписки от Firebase-слушателей (предотвращение утечек)
 let unsubscribeMessages = null;
@@ -510,14 +513,32 @@ window.handleTyping = () => {
 // ===== WEBRTC / CALLS =====
 
 async function setupStreaming(type) {
-  const constraints = type === 'video'
-    ? { video: { facingMode: 'user' }, audio: true }
-    : { audio: true };
-  localStream = await navigator.mediaDevices.getUserMedia(constraints);
-  document.getElementById('localVideo').srcObject = localStream;
   if (type === 'video') {
     document.getElementById('video-container').style.display = 'block';
     document.getElementById('call-ui-top').style.opacity = '0.15';
+    document.getElementById('localVideo').style.display = 'block';
+  }
+
+  const constraints = type === 'video'
+    ? { video: { facingMode: 'user' }, audio: true }
+    : { audio: true };
+
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia(constraints);
+    document.getElementById('localVideo').srcObject = localStream;
+  } catch (e) {
+    console.warn('Primary media stream failed, trying fallback:', e);
+    if (type === 'video') {
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        document.getElementById('localVideo').style.display = 'none'; // Нет камеры
+        showToast('Камера недоступна, используется только микрофон');
+      } catch (audioErr) {
+        throw new Error('Нет доступа к камере и микрофону');
+      }
+    } else {
+      throw new Error('Нет доступа к микрофону');
+    }
   }
 }
 
@@ -538,7 +559,9 @@ window.startCall = async (type) => {
     await setupStreaming(type);
   } catch (e) {
     console.error('Media error:', e);
-    showToast('Нет доступа к микрофону/камере');
+    showToast(e.message || 'Ошибка медиа-устройств');
+    endCallLocal();
+    return;
   }
 
   pc = new RTCPeerConnection(peerConfig);
@@ -570,7 +593,7 @@ window.startCall = async (type) => {
 
   const candidateQueue = [];
 
-  onChildAdded(ref(db, `calls/${currentChatId}/calleeCandidates`), (snap) => {
+  const unsubs1 = onChildAdded(ref(db, `calls/${currentChatId}/calleeCandidates`), (snap) => {
     const candidate = new RTCIceCandidate(snap.val());
     if (pc?.currentRemoteDescription) {
       pc.addIceCandidate(candidate).catch(console.error);
@@ -578,8 +601,9 @@ window.startCall = async (type) => {
       candidateQueue.push(candidate);
     }
   });
+  callUnsubscribes.push(unsubs1);
 
-  onValue(callRef, async (snap) => {
+  const unsubs2 = onValue(callRef, async (snap) => {
     const data = snap.val();
     if (data?.answer && pc && !pc.currentRemoteDescription) {
       await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
@@ -589,11 +613,10 @@ window.startCall = async (type) => {
     }
     if (data?.status === 'ended') endCallLocal();
   });
+  callUnsubscribes.push(unsubs2);
 };
 
 function listenGlobalCalls() {
-  let shownCallId = null;
-
   onValue(ref(db, 'calls'), (snap) => {
     const calls = snap.val();
 
@@ -671,7 +694,8 @@ async function answerCall(chatId, call) {
     await setupStreaming(call.callType || 'voice');
   } catch (e) {
     console.error('Media error:', e);
-    showToast('Нет доступа к микрофону');
+    showToast(e.message || 'Ошибка медиа-устройств');
+    // Мы можем продолжить выполнение, но без локального потока
   }
 
   pc = new RTCPeerConnection(peerConfig);
@@ -696,11 +720,12 @@ async function answerCall(chatId, call) {
 
   await pc.setLocalDescription(answer);
 
-  onChildAdded(ref(db, `calls/${chatId}/callerCandidates`), (snap) => {
+  const unsubs1 = onChildAdded(ref(db, `calls/${chatId}/callerCandidates`), (snap) => {
     if (pc?.remoteDescription) {
       pc.addIceCandidate(new RTCIceCandidate(snap.val())).catch(console.error);
     }
   });
+  callUnsubscribes.push(unsubs1);
 
   document.getElementById('call-status').textContent = '● В эфире';
 }
@@ -719,6 +744,10 @@ function endCallLocal() {
     localStream = null;
   }
   if (pc) { pc.close(); pc = null; }
+
+  callUnsubscribes.forEach(unsub => unsub());
+  callUnsubscribes = [];
+  shownCallId = null;
   isCallActive = false;
   micMuted = false;
   speakerOff = false;
