@@ -318,7 +318,7 @@ window.openChat = (id) => {
 
   document.getElementById('chat-view').classList.add('active');
   document.getElementById('sidebar').classList.add('hidden');
-  document.getElementById('btn-video-call').style.display = isGroup ? 'none' : '';
+  document.getElementById('btn-video-call').style.display = '';
 
   if (currentChatData.unread && currentChatData.unread[currentUser.uid]) {
     update(ref(db, `chats/${id}/unread`), { [currentUser.uid]: 0 });
